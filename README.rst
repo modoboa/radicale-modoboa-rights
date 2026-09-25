@@ -9,7 +9,12 @@ domain is decided locally. Access to collections owned by someone else
 to the Modoboa API and cached, so Radicale and Modoboa can run on
 different servers without sharing any file.
 
-Requires Radicale 3.3 or later.
+Requirements:
+
+* Radicale 3.3 or later
+* Modoboa 2.11 or later, which provides the rights endpoint. Modoboa is
+  not a Python dependency of this package: it is usually installed on
+  another server and only reached through its API.
 
 Installation
 ------------

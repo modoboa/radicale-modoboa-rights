@@ -186,6 +186,7 @@ def test_grants_are_per_user(make_rights, api, clock):
         requests.Timeout("timeout"),
         FakeResponse(status_code=500),
         FakeResponse(status_code=401),
+        FakeResponse(status_code=404),
         FakeResponse(data=ValueError("not JSON")),
         FakeResponse(data=["not", "an", "object"]),
         FakeResponse(data={"admin_domains": "example.com"}),

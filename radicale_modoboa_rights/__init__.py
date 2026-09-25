@@ -212,6 +212,13 @@ class Rights(rights.BaseRights):
         except requests.RequestException as exc:
             logger.error("Modoboa rights request failed: %s", exc)
             return self._fetch_failed()
+        if response.status_code == 404:
+            logger.error(
+                "Modoboa rights endpoint not found: check %s "
+                "(Modoboa 2.11 or later is required)",
+                self._endpoint,
+            )
+            return self._fetch_failed()
         if response.status_code != 200:
             logger.error(
                 "Modoboa rights endpoint returned status %d", response.status_code
