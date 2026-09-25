@@ -3,7 +3,7 @@
 import pytest
 import requests
 
-from conftest import ENDPOINT, FakeResponse
+from conftest import ENDPOINT, TOKEN_ENDPOINT, FakeResponse
 
 ALICE = "alice@example.com"
 BOB = "bob@example.com"
@@ -54,14 +54,15 @@ def test_other_domain_members_have_no_access_to_domain_calendars(make_rights, ap
     assert api.calls_for(CAROL)
 
 
-def test_request_sent_to_modoboa(make_rights, api):
+def test_requests_sent_to_modoboa(make_rights, api):
     rights = make_rights()
     rights.authorization(BOB, ALICE_CALENDAR)
-    assert api.calls[0] == {
-        "url": ENDPOINT,
-        "json": {"user": BOB},
-        "auth": ("radicale", "secret"),
-    }
+    assert api.token_calls == [
+        {"data": {"grant_type": "client_credentials"}, "auth": ("radicale", "secret")}
+    ]
+    assert api.calls == [
+        {"url": ENDPOINT, "json": {"user": BOB}, "authorization": "Bearer token-1"}
+    ]
 
 
 @pytest.mark.parametrize("permissions", ["r", "rwd"])
@@ -186,6 +187,7 @@ def test_grants_are_per_user(make_rights, api, clock):
         requests.Timeout("timeout"),
         FakeResponse(status_code=500),
         FakeResponse(status_code=401),
+        FakeResponse(status_code=403),
         FakeResponse(status_code=404),
         FakeResponse(data=ValueError("not JSON")),
         FakeResponse(data=["not", "an", "object"]),
@@ -253,3 +255,91 @@ def test_required_options(make_rights, option):
 def test_invalid_number_option(make_rights, value):
     with pytest.raises(RuntimeError, match="modoboa_rights_cache_ttl"):
         make_rights(modoboa_rights_cache_ttl=value)
+
+
+def test_access_token_is_reused(make_rights, api, clock):
+    rights = make_rights()
+    for user in [BOB, CAROL, "dave@example.com"]:
+        rights.authorization(user, ALICE_CALENDAR)
+    assert len(api.calls) == 3
+    assert len(api.token_calls) == 1
+
+
+def test_access_token_is_renewed_before_expiration(make_rights, api, clock):
+    api.token_expires_in = 60
+    rights = make_rights()
+    rights.authorization(BOB, ALICE_CALENDAR)
+    # Renewed 30 seconds before its expiration
+    clock.now += 29
+    rights.authorization(CAROL, ALICE_CALENDAR)
+    assert len(api.token_calls) == 1
+    clock.now += 2
+    rights.authorization("dave@example.com", ALICE_CALENDAR)
+    assert len(api.token_calls) == 2
+    assert api.calls[-1]["authorization"] == "Bearer token-2"
+
+
+def test_refused_access_token_is_renewed(make_rights, api, clock):
+    api.grants[BOB] = {"shares": {"alice@example.com/Work": "r"}}
+    rights = make_rights()
+    rights.authorization(CAROL, ALICE_CALENDAR)
+    api.revoke_tokens()
+    assert rights.authorization(BOB, ALICE_CALENDAR) == "r"
+    assert len(api.token_calls) == 2
+    assert [call["authorization"] for call in api.calls_for(BOB)] == [
+        "Bearer token-1",
+        "Bearer token-2",
+    ]
+
+
+def test_access_token_is_renewed_only_once(make_rights, api):
+    # e.g. the rights endpoint does not accept the application's tokens
+    api.error = FakeResponse(status_code=401)
+    rights = make_rights()
+    assert rights.authorization(BOB, ALICE_CALENDAR) == ""
+    assert len(api.calls) == 2
+    assert len(api.token_calls) == 2
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        requests.ConnectionError("unreachable"),
+        FakeResponse(status_code=401),
+        FakeResponse(data=ValueError("not JSON")),
+        FakeResponse(data={"token_type": "Bearer"}),
+        FakeResponse(data={"access_token": ""}),
+        FakeResponse(data={"access_token": "token", "expires_in": "soon"}),
+        FakeResponse(data=["not", "an", "object"]),
+    ],
+)
+def test_token_failure_denies_access(make_rights, api, error):
+    api.token_error = error
+    rights = make_rights(modoboa_rights_retry_delay="10")
+    assert rights.authorization(BOB, ALICE_CALENDAR) == ""
+    assert rights.authorization(CAROL, ALICE_CALENDAR) == ""
+    assert not api.calls
+    # No new attempt during the retry delay
+    assert len(api.token_calls) == 1
+
+
+def test_access_token_without_expiration(make_rights, api, clock):
+    api.token_expires_in = None
+    rights = make_rights()
+    rights.authorization(BOB, ALICE_CALENDAR)
+    clock.now += 200
+    rights.authorization(CAROL, ALICE_CALENDAR)
+    assert len(api.token_calls) == 1
+
+
+def test_client_credentials_are_form_encoded(make_rights, api):
+    rights = make_rights(modoboa_client_id="radi cale", modoboa_client_secret="a+b:c")
+    rights.authorization(BOB, ALICE_CALENDAR)
+    assert api.token_calls[0]["auth"] == ("radi+cale", "a%2Bb%3Ac")
+
+
+def test_token_endpoint_option(make_rights, api):
+    rights = make_rights(modoboa_token_endpoint="https://sso.test/token/")
+    assert rights._token_endpoint == "https://sso.test/token/"
+    rights = make_rights()
+    assert rights._token_endpoint == TOKEN_ENDPOINT

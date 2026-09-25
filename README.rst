@@ -36,7 +36,16 @@ Here is a configuration example::
    modoboa_client_id = <client id>
    modoboa_client_secret = <client secret>
 
-Optional settings (values in seconds):
+The OAuth2 application must be named ``Radicale`` and use the client
+credentials grant. It is the one created for Radicale's authentication
+plugin.
+
+Optional settings:
+
+``modoboa_token_endpoint`` (default: ``/api/o/token/`` on the host of ``modoboa_rights_endpoint``)
+   Modoboa's OAuth2 token endpoint.
+
+The following optional settings are in seconds:
 
 ``modoboa_rights_cache_ttl`` (default: 60)
    How long rights fetched from Modoboa are cached. This is also the
@@ -79,8 +88,13 @@ The ``d`` permission forbids the deletion of the calendar itself when
 Modoboa API
 -----------
 
-The plugin sends ``POST`` requests to ``modoboa_rights_endpoint``,
-authenticated with HTTP Basic using the client id and secret::
+The plugin gets an access token from ``modoboa_token_endpoint`` with the
+OAuth2 client credentials grant (client id and secret sent with HTTP
+Basic). The token is kept until it is about to expire, or until the API
+refuses it.
+
+It then sends ``POST`` requests to ``modoboa_rights_endpoint`` with the
+token (``Authorization: Bearer <token>``)::
 
    {"user": "bob@example.com"}
 
