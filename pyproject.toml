@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm[toml]>=6.4"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "radicale_modoboa_rights"
+dynamic = [
+  "version",
+]
+authors = [
+  { name="Antoine Nguyen", email="tonio@ngyn.org" },
+]
+description = "Radicale rights plugin backed by the Modoboa API"
+requires-python = ">=3.9"
+dependencies = [
+  "Radicale>=3.3",
+  "requests",
+]
+classifiers = [
+  "Programming Language :: Python",
+  "Development Status :: 4 - Beta",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+]
+keywords = ["radicale", "modoboa", "rights", "caldav"]
+readme = "README.rst"
+license = { file = "LICENSE" }
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Repository = "https://github.com/modoboa/radicale-modoboa-rights"
+Issues = "https://github.com/modoboa/radicale-modoboa-rights/issues"
+
+[tool.setuptools]
+packages = ["radicale_modoboa_rights"]
+
+[tool.setuptools.dynamic]
+version = {attr = "radicale_modoboa_rights.version.get_version"}
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
