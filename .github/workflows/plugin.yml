@@ -2,11 +2,11 @@ name: Radicale Modoboa rights plugin
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
   release:
-    branches: [ master ]
+    branches: [ main ]
     types: [ published ]
 
 jobs:
@@ -55,7 +55,7 @@ jobs:
           python -m pip install build
           python -m build
       - name: Publish to Test PyPI
-        if: endsWith(github.event.ref, '/master')
+        if: endsWith(github.event.ref, '/main')
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
