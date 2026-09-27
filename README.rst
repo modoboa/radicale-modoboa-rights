@@ -85,6 +85,20 @@ Shared calendars                                  returned by Modoboa
 The ``d`` permission forbids the deletion of the calendar itself when
 ``[rights] permit_delete_collection`` is enabled (the default).
 
+Share link tokens
+-----------------
+
+User names starting with ``.modoboa-token-`` are reserved for share link
+tokens, which the authentication plugin turns into user names. Such a
+user has no principal or calendars of its own, and no administrator or
+manager rights: it only gets the calendars listed in ``shares`` by the
+Modoboa API. Without this, Radicale would create a principal collection
+for each token.
+
+The prefix only uses characters accepted by ``[server]
+validate_user_value = strict``. Modoboa must never use it for account
+names.
+
 Modoboa API
 -----------
 
@@ -116,6 +130,7 @@ and expects the following answer::
 
 ``shares``
    Calendars shared with the user, as ``path: permissions``. Only
-   ``rwdDoOi`` permissions are accepted.
+   ``rwdDoOi`` permissions are accepted. For a share link token, the
+   calendar the token gives access to.
 
 All keys are optional.

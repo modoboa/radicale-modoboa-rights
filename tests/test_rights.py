@@ -8,6 +8,7 @@ from conftest import ENDPOINT, TOKEN_ENDPOINT, FakeResponse
 ALICE = "alice@example.com"
 BOB = "bob@example.com"
 CAROL = "carol@other.org"
+TOKEN = ".modoboa-token-0123456789abcdef0123456789abcdef"
 ALICE_CALENDAR = "/alice@example.com/Work/"
 
 
@@ -78,6 +79,40 @@ def test_shared_calendar_with_special_characters(make_rights, api):
     api.grants[BOB] = {"shares": {"alice@example.com/Réunions équipe": "r"}}
     rights = make_rights()
     assert rights.authorization(BOB, "/alice@example.com/Réunions équipe/") == "r"
+
+
+def test_token_identity_gets_shared_calendar(make_rights, api):
+    api.grants[TOKEN] = {"shares": {"alice@example.com/Work": "r"}}
+    rights = make_rights()
+    assert rights.authorization(TOKEN, ALICE_CALENDAR) == "r"
+    assert api.calls_for(TOKEN)
+    assert rights.authorization(TOKEN, "/alice@example.com/Private/") == ""
+    assert rights.authorization(TOKEN, "/example.com/Team/") == ""
+
+
+def test_token_identity_gets_shared_domain_calendar(make_rights, api):
+    api.grants[TOKEN] = {"shares": {"example.com/Team": "r"}}
+    rights = make_rights()
+    assert rights.authorization(TOKEN, "/example.com/Team/") == "r"
+
+
+def test_token_identity_has_no_local_access(make_rights, api):
+    """A token has no root, principal or calendars of its own."""
+    rights = make_rights()
+    assert rights.authorization(TOKEN, "/") == ""
+    assert rights.authorization(TOKEN, f"/{TOKEN}/") == ""
+    assert rights.authorization(TOKEN, f"/{TOKEN}/Calendar/") == ""
+    assert rights.authorization(TOKEN, "/alice@example.com/") == ""
+
+
+def test_token_identity_ignores_admin_grants(make_rights, api):
+    """Only shares apply to a token, whatever the API returns."""
+    api.grants[TOKEN] = {"admin_domains": ["*"], "managed_domains": ["*"]}
+    rights = make_rights()
+    assert rights.authorization(TOKEN, ALICE_CALENDAR) == ""
+    assert rights.authorization(TOKEN, "/alice@example.com/") == ""
+    assert rights.authorization(TOKEN, "/example.com/") == ""
+    assert rights.authorization(TOKEN, "/example.com/Team/") == ""
 
 
 def test_invalid_share_permissions_are_ignored(make_rights, api):
