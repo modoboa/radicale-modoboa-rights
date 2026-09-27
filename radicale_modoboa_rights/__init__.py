@@ -30,6 +30,10 @@ MANAGER_CALENDAR_PERMISSIONS = "rw"
 #: Matches any domain in admin_domains and managed_domains
 ALL_DOMAINS = "*"
 
+#: Prefix of the user names given to share link tokens by the
+#: authentication plugin. Modoboa never uses it for accounts.
+TOKEN_IDENTITY_PREFIX = ".modoboa-token-"
+
 #: Permissions the Modoboa API is allowed to grant on a shared calendar
 ALLOWED_SHARE_PERMISSIONS = frozenset("rwdDoOi")
 
@@ -60,6 +64,11 @@ def get_domain(owner):
 def is_domain_collection(owner):
     """Check if owner is a domain (shared calendars) and not a user."""
     return "@" not in owner
+
+
+def is_token_identity(user):
+    """Check if user is a share link token and not an account."""
+    return user.startswith(TOKEN_IDENTITY_PREFIX)
 
 
 def get_domain_list(data, key):
@@ -152,6 +161,8 @@ class Rights(rights.BaseRights):
     Access to a user's own collections and to domain shared calendars is
     decided locally. Access to collections owned by someone else (shared
     calendars, administrators) is asked to the Modoboa API, and cached.
+    Share link tokens (user names starting with TOKEN_IDENTITY_PREFIX)
+    only get the calendars the Modoboa API shares with them.
 
     Configuration:
 
@@ -372,6 +383,17 @@ class Rights(rights.BaseRights):
             self._purge_cache(now)
         return grants
 
+    def _api_permissions(self, user, lookup):
+        """Return the permissions lookup finds in the grants of user.
+
+        When none are found, grants are fetched again in case a share
+        was just added.
+        """
+        permissions = lookup(self._get_grants(user))
+        if not permissions:
+            permissions = lookup(self._get_grants(user, refresh=True))
+        return permissions
+
     def _foreign_permissions(self, user, owner, sane_path, is_principal):
         """Return permissions of user on a collection owned by someone else."""
 
@@ -380,21 +402,33 @@ class Rights(rights.BaseRights):
                 return grants.principal_permissions(owner)
             return grants.calendar_permissions(owner, sane_path)
 
-        permissions = lookup(self._get_grants(user))
-        if not permissions:
-            permissions = lookup(self._get_grants(user, refresh=True))
-        return permissions
+        return self._api_permissions(user, lookup)
+
+    def _token_permissions(self, user, sane_path, parts):
+        """Return permissions of a share link token.
+
+        A token only opens the calendars Modoboa shares with it: no
+        principal of its own (Radicale would create it), no admin or
+        manager rights.
+        """
+        if len(parts) != 2:
+            return ""
+        return self._api_permissions(
+            user, lambda grants: grants.shares.get(sane_path, "")
+        )
 
     def authorization(self, user, path):
         if not user:
             return ""
         sane_path = pathutils.strip_path(path)
-        if not sane_path:
-            return "R"
         parts = sane_path.split("/")
         if len(parts) > 2:
             # Items: Radicale relies on the rights of the parent collection
             return ""
+        if is_token_identity(user):
+            return self._token_permissions(user, sane_path, parts)
+        if not sane_path:
+            return "R"
         owner = parts[0]
         if owner == user:
             if len(parts) == 1:

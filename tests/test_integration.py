@@ -132,3 +132,14 @@ def test_domain_shared_calendar(application, api):
 
 def test_domain_collection_cannot_be_created_by_members(application, api):
     assert request(application, "MKCOL", "/example.com/", BOB) == 403
+
+
+def test_share_link_token(application, api, alice_calendar, tmp_path):
+    token = ".modoboa-token-0123456789abcdef0123456789abcdef"
+    api.grants[token] = {"shares": {"alice@example.com/Réunions équipe": "r"}}
+    assert request(application, "GET", ALICE_CALENDAR, token) == 200
+    assert request(application, "GET", f"{ALICE_CALENDAR}first.ics", token) == 200
+    assert put_event(application, token, "second") == 403
+    assert request(application, "MKCALENDAR", f"/{token}/Calendar/", token) == 403
+    # Radicale must not create a principal collection for the token
+    assert not (tmp_path / "collection-root" / token).exists()
