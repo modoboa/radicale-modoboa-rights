@@ -417,7 +417,9 @@ class Rights(rights.BaseRights):
             user, lambda grants: grants.shares.get(sane_path, "")
         )
 
-    def authorization(self, user, path):
+    def authorization(self, user, *args):
+        # Radicale 3.9+ passes (user, user_groups, path), older versions (user, path)
+        path = args[-1]
         if not user:
             return ""
         sane_path = pathutils.strip_path(path)
