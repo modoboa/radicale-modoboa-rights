@@ -32,6 +32,12 @@ def test_owner_access_is_local(make_rights, api):
     assert not api.calls
 
 
+def test_user_groups_argument_is_accepted(make_rights, api):
+    # Radicale 3.9+ signature: (user, user_groups, path)
+    rights = make_rights()
+    assert rights.authorization(ALICE, set(), ALICE_CALENDAR) == "rw"
+
+
 def test_items_rely_on_parent_collection(make_rights, api):
     rights = make_rights()
     assert rights.authorization(ALICE, "/alice@example.com/Work/event.ics") == ""
